@@ -3,6 +3,16 @@
   "version": "0.1.0",
   "description": "Minimal Docker Desktop-style GUI for Colima",
   "main": "main.js",
-  "scripts": { "start": "electron ." },
-  "devDependencies": { "electron": "^38.0.0" }
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "test:chaos": "FC_NUM_RUNS=20000 FC_CHAOS_RUNS=200 node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "fast-check": "^3.23.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }
