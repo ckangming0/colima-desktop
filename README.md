@@ -17,7 +17,11 @@ npm ci
 npm start        # launch the app
 npm test         # property-based, chaos and posture tests (~20s)
 npm run test:chaos   # same suites at 10× the iterations (~2 min)
+npm run install-app  # build "Colima Desktop.app" and copy it into /Applications
+npm run dist         # build a .dmg and .zip into dist/ for sharing
 ```
+
+The app is ad-hoc signed (`build/adhoc-sign.js`), which is enough to run on the machine that built it. A copy downloaded onto another Mac will be blocked by Gatekeeper. For org-wide distribution, sign it with your organisation's Developer ID and notarize it: set `build.mac.identity` and remove the `afterPack` hook.
 
 ## How it works
 
@@ -47,10 +51,13 @@ npm run test:chaos   # same suites at 10× the iterations (~2 min)
 | `preload.js` | The only bridge into the page. Exposes `window.cli.run` and `window.cli.logs` |
 | `index.html` | Markup and styles |
 | `renderer.js` | UI state, polling, rendering, log viewer, stats charts |
+| `ui/islands.jsx` | React + [Motion](https://motion.dev) islands (stats tab, rolling counters, transitions), bundled by `build/build-ui.js` into `gen/islands.js`. `npm start` rebuilds it automatically |
+| `ui/reactbits/` | CountUp, SpotlightCard and ShinyText from [React Bits](https://reactbits.dev) (MIT + Commons Clause) |
 | `lib/policy.js` | Command allowlist, `docker logs` argument builder, external URL policy, config |
 | `lib/runner.js` | Runs an allowlisted CLI call and always settles to `{ ok, stdout, stderr }` |
 | `lib/log-streams.js` | Log-stream lifecycle (start, replace, stop, window destroyed) |
 | `lib/audit.js` | Append-only JSONL audit trail |
+| `build/icon.svg` | App icon source. Regenerate `icon.png`/`icon.icns` with `npx electron build/make-icon.js && sh build/make-icns.sh` |
 | `lib/format.js` | Pure, untrusted-input-safe parsing and HTML helpers shared with the tests |
 
 ### Polling
@@ -106,7 +113,7 @@ launchctl setenv COLIMA_DESKTOP_READONLY 1
 State-changing commands (with their result) and every policy denial are appended as JSON lines to:
 
 ```
-~/Library/Logs/colima-desktop/audit.jsonl
+~/Library/Logs/Colima Desktop/audit.jsonl
 ```
 
 ```json

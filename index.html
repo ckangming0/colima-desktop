@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Colima Desktop</title>
+<link rel="stylesheet" href="gen/islands.css">
 <style>
   :root {
     --text: rgba(0,0,0,.88); --text-2: rgba(0,0,0,.56); --text-3: rgba(0,0,0,.36);
@@ -46,6 +47,10 @@
   }
   nav button:hover { background: var(--hover); }
   nav button[aria-current="true"] { background: var(--sel); }
+  nav { position: relative; }
+  nav button { position: relative; z-index: 1; }
+  nav.has-pill button[aria-current="true"] { background: transparent; }
+  .nav-pill { position: absolute; top: 0; left: 0; right: 0; border-radius: 7px; background: var(--sel); pointer-events: none; }
   nav svg { width: 16px; height: 16px; color: var(--accent); flex: none; }
   nav .count { margin-left: auto; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
@@ -60,12 +65,14 @@
   main { flex: 1; min-width: 0; background: var(--pane); position: relative; display: flex; flex-direction: column; border-left: 1px solid var(--sep); }
   header {
     position: absolute; inset: 0 0 auto 0; z-index: 3; height: 52px; display: flex; align-items: center; gap: 10px;
-    padding: 0 14px 0 20px; background: var(--bar); backdrop-filter: blur(20px) saturate(180%); -webkit-app-region: drag;
+    padding: 0 14px 0 20px; background: var(--bar); backdrop-filter: blur(20px) saturate(180%);
   }
   header::after { content: ""; position: absolute; inset: auto 0 -12px 0; height: 12px; pointer-events: none;
     background: linear-gradient(var(--sep), transparent); opacity: 0; transition: opacity .2s; }
   header.scrolled::after { opacity: .7; }
-  header button, header input, header a { -webkit-app-region: no-drag; }
+  /* Only passive pieces drag the window. macOS can miss no-drag holes punched in a drag region for
+     content that's swapped in later (e.g. the detail header), which swallows clicks on its buttons. */
+  header .spacer, header h1, header .sub { -webkit-app-region: drag; }
   h1 { font-size: 15px; font-weight: 700; letter-spacing: -.01em; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   header .sub { color: var(--text-2); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .spacer { flex: 1; }
@@ -196,8 +203,11 @@
   /* stats */
   .stats { flex: 1; overflow: auto; padding: 18px 20px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; align-content: start; }
   .tile { background: var(--card); border-radius: 12px; padding: 14px 16px; box-shadow: 0 0 0 1px var(--sep); position: relative; }
-  .tile { grid-column: span 2; }
-  .tile.wide { grid-column: span 3; }
+  .tile-cell { grid-column: span 2; display: flex; }
+  .tile-cell.wide { grid-column: span 3; }
+  .tile-cell > .tile { flex: 1; }
+  .tile.spotlight-card { box-shadow: none; padding: 14px 16px; border-radius: 12px; }
+  .tile .big.sm { font-size: 20px; }
   .tile h4 { margin: 0 0 6px; font-size: 11px; font-weight: 600; color: var(--text-2); letter-spacing: .01em; }
   .tile .big { font-size: 26px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .tile .big small { font-size: 13px; font-weight: 500; color: var(--text-2); letter-spacing: 0; margin-left: 4px; }
@@ -311,6 +321,7 @@
   <div class="toast" id="toast"></div>
 
 <script src="lib/format.js"></script>
+<script src="gen/islands.js"></script>
 <script src="renderer.js"></script>
 </body>
 </html>

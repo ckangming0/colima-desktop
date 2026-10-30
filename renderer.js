@@ -1,5 +1,9 @@
 // Renderer for Colima Desktop. Loaded by index.html; talks to the main process only via window.cli (preload.js).
 const { str, esc, jsonLines, short, toBytes, ansiToHtml, highlightJson } = window.Format;
+// React/Motion islands (ui/islands.jsx). They own the nodes they're given; never write those nodes directly.
+const I = window.Islands;
+const setCount = (el, n) => I.count(el, n);
+const setEngineLabel = (text, busy = false) => I.engineLabel($('engine-label'), text, busy);
 const $ = (id) => document.getElementById(id);
 // Only touch the DOM when markup changed, so a click landing mid-refresh isn't swallowed.
 const setHTML = (el, html) => { if (el._html !== html) { el._html = html; el.innerHTML = html; } };
@@ -102,7 +106,7 @@ $('engine-btn').addEventListener('click', async () => {
   const btn = $('engine-btn');
   btn.disabled = true; btn.textContent = running ? 'Stopping…' : 'Starting…';
   $('engine-dot').className = 'dot busy';
-  $('engine-label').textContent = running ? 'Stopping' : 'Starting';
+  setEngineLabel(running ? 'Stopping' : 'Starting', true);
   const r = await colima(running ? 'stop' : 'start');
   if (!r.ok) toast(r.stderr.trim().split('\n').pop() || 'Colima failed', true);
   await refreshEngine(); await refreshDocker();
@@ -289,65 +293,13 @@ async function loadInspect() {
 $('inspect-copy').addEventListener('click', () => copy(inspectJson, 'JSON copied'));
 
 // ---------- stats ----------
-const fmtBytes = (b) => {
-  if (!b) return '0 B';
-  const u = ['B', 'KB', 'MB', 'GB', 'TB'], i = Math.min(u.length - 1, Math.floor(Math.log(b) / Math.log(1024)));
-  return `${(b / 1024 ** i).toFixed(i ? 1 : 0)} ${u[i]}`;
-};
-
-function sparkline(points, key, fmt, maxHint) {
-  if (points.length < 2) return '<div class="note">Collecting samples…</div>';
-  const W = 300, H = 56, max = Math.max(maxHint || 0, ...points.map((p) => p[key])) * 1.1 || 1;
-  const xy = points.map((p, i) => [(i / (points.length - 1)) * W, H - (p[key] / max) * H]);
-  const line = xy.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('');
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-key="${key}" data-fmt="${fmt}">
-    <line class="grid" x1="0" x2="${W}" y1="${H}" y2="${H}" vector-effect="non-scaling-stroke"/>
-    <path class="area" d="${line}L${W},${H}L0,${H}Z"/>
-    <path class="line" d="${line}" vector-effect="non-scaling-stroke"/>
-    <line class="cross" y1="0" y2="${H}" vector-effect="non-scaling-stroke" visibility="hidden"/>
-  </svg>`;
-}
 
 function renderStats() {
   const id = short(state.detail.id), s = state.stats[id], h = state.history[id] || [];
   const c = state.containers.find((x) => x.ID === state.detail.id);
-  if (!c || c.State !== 'running' || !s) {
-    $('stats-body').innerHTML = `<div class="empty" style="grid-column:1/-1"><h2>${c?.State === 'running' ? 'Collecting stats…' : 'Container isn’t running'}</h2><p>${c?.State === 'running' ? 'The first sample arrives within a few seconds.' : 'Start it to see live resource usage.'}</p></div>`;
-    return;
-  }
-  const [memUsed, memLimit] = s.MemUsage.split(' / ');
-  const [netIn, netOut] = s.NetIO.split(' / ');
-  const [blkIn, blkOut] = s.BlockIO.split(' / ');
-  $('stats-body').innerHTML = `
-    <div class="tile wide"><h4>CPU</h4><span class="tip" data-tip></span>
-      <div class="big">${esc(parseFloat(s.CPUPerc).toFixed(1))}<small>%</small></div>
-      <div class="note">Last ${h.length} samples · 5 s interval</div>${sparkline(h, 'cpu', 'pct')}</div>
-    <div class="tile wide"><h4>Memory</h4><span class="tip" data-tip></span>
-      <div class="big">${esc(memUsed)}<small>of ${esc(memLimit)}</small></div>
-      <div class="note">${esc(s.MemPerc)} of limit</div>${sparkline(h, 'mem', 'bytes')}</div>
-    <div class="tile"><h4>Network I/O</h4><div class="big" style="font-size:20px">${esc(netIn)}<small>in</small></div><div class="note">${esc(netOut)} out</div></div>
-    <div class="tile"><h4>Disk I/O</h4><div class="big" style="font-size:20px">${esc(blkIn)}<small>read</small></div><div class="note">${esc(blkOut)} written</div></div>
-    <div class="tile"><h4>Processes</h4><div class="big" style="font-size:20px">${esc(s.PIDs)}</div><div class="note">PIDs</div></div>`;
+  const status = c?.State !== 'running' ? 'stopped' : s ? 'ok' : 'collecting';
+  I.stats($('stats-body'), state.detail.id, { status, s, history: h });
 }
-
-// crosshair + readout for sparklines
-$('stats-body').addEventListener('mousemove', (e) => {
-  const svg = e.target.closest('.spark'); if (!svg) return;
-  const h = state.history[short(state.detail.id)] || [];
-  const rect = svg.getBoundingClientRect();
-  const i = Math.round(((e.clientX - rect.left) / rect.width) * (h.length - 1));
-  const p = h[Math.max(0, Math.min(h.length - 1, i))]; if (!p) return;
-  const x = (i / (h.length - 1)) * 300;
-  const cross = svg.querySelector('.cross');
-  cross.setAttribute('x1', x); cross.setAttribute('x2', x); cross.setAttribute('visibility', 'visible');
-  const v = svg.dataset.fmt === 'pct' ? `${p.cpu.toFixed(1)}%` : fmtBytes(p.mem);
-  svg.closest('.tile').querySelector('[data-tip]').textContent = `${new Date(p.t).toLocaleTimeString([], { hour12: false })} · ${v}`;
-});
-$('stats-body').addEventListener('mouseout', (e) => {
-  const svg = e.target.closest('.spark'); if (!svg || svg.contains(e.relatedTarget)) return;
-  svg.querySelector('.cross').setAttribute('visibility', 'hidden');
-  svg.closest('.tile').querySelector('[data-tip]').textContent = '';
-});
 
 // ---------- detail view ----------
 function openDetail(id) {
@@ -360,6 +312,7 @@ function openDetail(id) {
   $('header').classList.add('scrolled');
   resetLogs();
   render();
+  I.openDetail($('detail'));
   refreshStats();
 }
 
@@ -371,6 +324,7 @@ function closeDetail() {
   $('scroll').hidden = false; $('list-head').hidden = false;
   $('header').classList.toggle('scrolled', $('scroll').scrollTop > 0);
   render();
+  I.closeDetail($('scroll'));
 }
 
 function setTab(tab) {
@@ -380,6 +334,7 @@ function setTab(tab) {
   $('tools-logs').hidden = tab !== 'logs'; $('tools-inspect').hidden = tab !== 'inspect';
   if (tab === 'inspect') loadInspect();
   if (tab === 'stats') renderStats();
+  I.tab($('panel-' + tab));
 }
 $('tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setTab(b.dataset.tab); });
 
@@ -415,15 +370,15 @@ function renderEngine() {
   const e = state.engine, dot = $('engine-dot'), btn = $('engine-btn');
   btn.disabled = !!e?.missing;
   if (e?.missing) {
-    dot.className = 'dot'; $('engine-label').textContent = 'Colima not found';
+    dot.className = 'dot'; setEngineLabel('Colima not found');
     $('engine-meta').textContent = 'brew install colima docker'; btn.textContent = 'Unavailable';
   } else if (e?.running) {
-    dot.className = 'dot on'; $('engine-label').textContent = 'Engine running';
+    dot.className = 'dot on'; setEngineLabel('Engine running');
     const mem = e.memory ? `${Math.round(e.memory / 1024 ** 3)} GB` : '';
     $('engine-meta').textContent = [e.cpu && `${e.cpu} CPU`, mem, e.arch].filter(Boolean).join(' · ') || ' ';
     btn.textContent = 'Stop'; btn.classList.remove('primary');
   } else {
-    dot.className = 'dot'; $('engine-label').textContent = 'Engine stopped';
+    dot.className = 'dot'; setEngineLabel('Engine stopped');
     $('engine-meta').textContent = ' '; btn.textContent = 'Start'; btn.classList.add('primary');
   }
 }
@@ -499,9 +454,9 @@ const VIEWS = {
 };
 
 function render() {
-  $('n-containers').textContent = state.containers.length || '';
-  $('n-images').textContent = state.images.length || '';
-  $('n-volumes').textContent = state.volumes.length || '';
+  setCount($('n-containers'), state.containers.length);
+  setCount($('n-images'), state.images.length);
+  setCount($('n-volumes'), state.volumes.length);
   if (state.detail) { renderDetail(); return; }
   $('title').textContent = state.view[0].toUpperCase() + state.view.slice(1);
   const e = state.engine;
@@ -514,7 +469,9 @@ function render() {
     return;
   }
   setHTML($('content'), VIEWS[state.view]());
+  if (enterRows && $('content').querySelector('tbody tr, .empty')) { enterRows = false; I.rows($('content')); }
 }
+let enterRows = true; // stagger rows in on first load and after each view switch
 
 // ---------- events ----------
 $('nav').addEventListener('click', (e) => {
@@ -522,7 +479,8 @@ $('nav').addEventListener('click', (e) => {
   closeDetail();
   state.view = b.dataset.view;
   document.querySelectorAll('#nav button').forEach((x) => x.setAttribute('aria-current', x === b));
-  $('scroll').scrollTop = 0; render();
+  I.navPill($('nav'), b);
+  enterRows = true; $('scroll').scrollTop = 0; render();
 });
 // One delegated handler for every data-action in the page; buttons inside a clickable row win over the row.
 document.addEventListener('click', (e) => {
@@ -548,6 +506,7 @@ async function tick() {
   if (document.hidden) return;
   await refreshEngine(); await refreshDocker();
 }
+I.navPill($('nav'), document.querySelector('#nav button[aria-current="true"]'));
 tick().then(refreshStats);
 setInterval(tick, 3000);
 setInterval(refreshStats, 5000);

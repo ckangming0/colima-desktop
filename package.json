@@ -6,13 +6,53 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test test/*.test.js",
-    "test:chaos": "FC_NUM_RUNS=20000 FC_CHAOS_RUNS=200 node --test test/*.test.js"
+    "test:chaos": "FC_NUM_RUNS=20000 FC_CHAOS_RUNS=200 node --test test/*.test.js",
+    "dist": "npm run build:ui && electron-builder --mac",
+    "install-app": "npm run build:ui && electron-builder --mac --dir && sh build/install-app.sh",
+    "build:ui": "node build/build-ui.js",
+    "prestart": "npm run build:ui"
   },
   "devDependencies": {
     "electron": "^38.0.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.25.12",
     "fast-check": "^3.23.2"
   },
   "engines": {
     "node": ">=20"
+  },
+  "productName": "Colima Desktop",
+  "build": {
+    "appId": "sg.gov.cpf.colima-desktop",
+    "productName": "Colima Desktop",
+    "electronDist": "node_modules/electron/dist",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "renderer.js",
+      "lib/**",
+      "gen/**"
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "identity": null,
+      "hardenedRuntime": false
+    },
+    "afterPack": "build/adhoc-sign.js"
+  },
+  "dependencies": {
+    "motion": "^12.43.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   }
 }

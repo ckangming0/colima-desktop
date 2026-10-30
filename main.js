@@ -75,6 +75,8 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
+  // Packaged builds take the icon from build/icon.icns; this covers `npm start`, which runs inside Electron.app.
+  if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(path.join(__dirname, 'build', 'icon.png'));
   // No camera, mic, notifications, geolocation, etc. — only clipboard writes for the Copy buttons.
   session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'clipboard-sanitized-write'));
   createWindow();

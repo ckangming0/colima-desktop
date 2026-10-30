@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fc = require('fast-check');
-const { esc, jsonLines, toBytes, ansiToHtml, highlightJson } = require('../lib/format');
+const { esc, jsonLines, toBytes, fmtBytes, splitAmount, ansiToHtml, highlightJson } = require('../lib/format');
 
 const numRuns = Number(process.env.FC_NUM_RUNS) || 2000;
 const opts = { numRuns };
@@ -86,4 +86,28 @@ test('toBytes is total, finite and non-negative', () => {
   assert.equal(toBytes('1.5 MiB'), 1.5 * 1024 ** 2);
   assert.equal(toBytes('.'), 0); // regression: used to be NaN and poison the memory chart
   assert.equal(toBytes({ toString: [] }), 0); // regression: String() threw on this JSON shape
+});
+
+test('splitAmount round-trips docker size strings and rejects everything else safely', () => {
+  const unit = fc.constantFrom('', 'B', 'kB', 'MiB', 'GiB', '%', 'MB');
+  fc.assert(fc.property(fc.nat(1e6), fc.nat(3), unit, fc.constantFrom('', ' '), (n, d, u, sp) => {
+    const num = (n / 10 ** d).toFixed(d);
+    const a = splitAmount(num + sp + u);
+    assert.ok(a);
+    assert.equal(a.value, Number(num));
+    assert.equal(a.decimals, d);
+    assert.equal(a.unit, u);
+  }), opts);
+  fc.assert(fc.property(fc.jsonValue(), (v) => {
+    const a = splitAmount(v);
+    if (a) assert.ok(Number.isFinite(a.value) && a.value >= 0 && Number.isInteger(a.decimals));
+  }), opts);
+  for (const bad of ['--', 'N/A', '', '1.2.3MiB', '-5MiB']) assert.equal(splitAmount(bad), null, bad);
+});
+
+// Bounded to the 64-bit byte range: values come from `docker stats`, so anything larger isn't physical.
+test('fmtBytes is total and always yields "<number> <unit>"', () => {
+  fc.assert(fc.property(fc.oneof(fc.double({ max: 2 ** 64 }), fc.integer(), fc.constantFrom(NaN, Infinity, -Infinity, -1, 0, 1, 1023, 1024, 1e15, 2 ** 64)), (b) => {
+    assert.match(fmtBytes(b), /^\d+(\.\d)? (B|KB|MB|GB|TB)$/);
+  }), opts);
 });

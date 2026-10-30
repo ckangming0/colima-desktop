@@ -45,3 +45,13 @@ test('preload exposes only the narrow cli bridge', () => {
   assert.doesNotMatch(exposed, /ipcRenderer(?!\.(invoke|send|on)\()/, 'raw ipcRenderer must not be exposed');
   assert.doesNotMatch(preload, /require\('(child_process|fs)'\)/);
 });
+
+test('UI island bundle stays CSP-safe (no eval / Function constructor / remote imports)', async () => {
+  const esbuild = require('esbuild');
+  const { options } = require('../build/build-ui');
+  const out = await esbuild.build({ ...options, write: false, logLevel: 'silent' });
+  const js = out.outputFiles.find((f) => f.path.endsWith('.js')).text;
+  assert.doesNotMatch(js, /\beval\(|new Function\(|\bimport\(/);
+  assert.doesNotMatch(js, /https?:\/\/(?!reactbits\.dev|react\.dev|www\.w3\.org|motion\.dev)[\w.-]+\.\w+\//, 'bundle references a remote host');
+  assert.match(html, /<script src="gen\/islands\.js"><\/script>\s*<script src="renderer\.js">/, 'islands must load before the renderer');
+});
