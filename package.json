@@ -1,0 +1,8 @@
+{
+  "name": "colima-desktop",
+  "version": "0.1.0",
+  "description": "Minimal Docker Desktop-style GUI for Colima",
+  "main": "main.js",
+  "scripts": { "start": "electron ." },
+  "devDependencies": { "electron": "^38.0.0" }
+}
