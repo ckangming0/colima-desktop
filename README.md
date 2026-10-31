@@ -2,6 +2,8 @@
 
 A small, Docker Desktop–style GUI for [Colima](https://github.com/abiosoft/colima) on macOS. It shows the Colima engine status, containers, images and volumes; streams container logs; shows live CPU/memory stats and `docker inspect` output; and lets you start, stop, restart and delete things.
 
+![Colima Desktop: container list, live logs and stats](media/demo.gif)
+
 It's a thin front end over the `colima` and `docker` CLIs you already have installed. It doesn't bundle a container runtime, open a network port, contact the internet or collect telemetry.
 
 ## Requirements

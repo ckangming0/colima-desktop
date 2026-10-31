@@ -1,5 +1,7 @@
 node_modules/
-.claude/
+.claude/*
+!.claude/skills/
 .DS_Store
 dist/
 gen/
+media/demo/
