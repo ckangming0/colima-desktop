@@ -44,11 +44,12 @@ function EngineLabel({ text, busy }) {
 // ---------- stats panel ----------
 const W = 300, H = 56;
 
-function Sparkline({ points, field, format, onHover }) {
+function Sparkline({ points, field, format, onHover, ceil }) {
   const ref = useRef(null);
   const [hover, setHover] = useState(null);
   if (points.length < 2) return <div className="note">Collecting samples…</div>;
-  const max = Math.max(...points.map((p) => p[field])) * 1.1 || 1;
+  // `ceil` pins the top of the chart (e.g. cores × 100% for CPU) so the line's height is meaningful.
+  const max = ceil || Math.max(...points.map((p) => p[field])) * 1.1 || 1;
   const xy = points.map((p, i) => [(i / (points.length - 1)) * W, H - (p[field] / max) * H]);
   const line = xy.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('');
   const move = (e) => {
@@ -102,7 +103,7 @@ function Empty({ title, text }) {
   );
 }
 
-function Stats({ status, s, history }) {
+function Stats({ status, s, history, cores }) {
   if (status !== 'ok') {
     return status === 'collecting'
       ? <Empty title="Collecting stats…" text="The first sample arrives within a few seconds." />
@@ -115,8 +116,9 @@ function Stats({ status, s, history }) {
     <>
       <Tile wide title="CPU" index={0} withTip>{(tip) => <>
         <div className="big"><Roll to={Math.round(cpu * 10) / 10} decimals={1} /><small>%</small></div>
-        <div className="note">Last {history.length} samples · 5 s interval</div>
-        <Sparkline points={history} field="cpu" format={(v) => `${v.toFixed(1)}%`} onHover={tip} />
+        {/* docker stats reports CPU relative to one core, so a busy container can exceed 100%. */}
+        <div className="note">{cores ? `≈ ${(cpu / 100).toFixed(1)} of ${cores} cores · ` : ''}Last {history.length} samples · 5 s interval</div>
+        <Sparkline points={history} field="cpu" format={(v) => `${v.toFixed(1)}%`} onHover={tip} ceil={cores && cores * 100} />
       </>}</Tile>
       <Tile wide title="Memory" index={1} withTip>{(tip) => <>
         <div className="big"><Amount text={memUsed} /><small>of {memLimit}</small></div>

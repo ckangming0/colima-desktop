@@ -298,7 +298,7 @@ function renderStats() {
   const id = short(state.detail.id), s = state.stats[id], h = state.history[id] || [];
   const c = state.containers.find((x) => x.ID === state.detail.id);
   const status = c?.State !== 'running' ? 'stopped' : s ? 'ok' : 'collecting';
-  I.stats($('stats-body'), state.detail.id, { status, s, history: h });
+  I.stats($('stats-body'), state.detail.id, { status, s, history: h, cores: Number(state.engine?.cpu) || 0 });
 }
 
 // ---------- detail view ----------
